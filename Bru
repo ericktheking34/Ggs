@@ -1,0 +1,110 @@
+// MainExecutorViewController.m - Objective-C iOS Tweak & Interface Engine
+#import <UIKit/UIKit.h>
+#import <WebKit/WebKit.h>
+
+@interface MainExecutorViewController : UIViewController <UITextViewDelegate>
+@property (nonatomic, strong) UITextView *scriptEditor;
+@property (nonatomic, strong) UIView *floatingMenu;
+@property (nonatomic, strong) WKWebView *gameWebView;
+@end
+
+@implementation MainExecutorViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.09 alpha:1.0];
+    
+    // Initialize Web Sandbox Container for Roblox Client View
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    self.gameWebView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
+    [self.gameWebView loadURL:[NSURL URLWithString:@"https://www.roblox.com/home"]];
+    [self.view addSubview:self.gameWebView];
+    
+    // Setup Floating Delta-Style UI Overlay
+    [self setupFloatingMenu];
+    [self setupScriptEditor];
+}
+
+- (void)setupFloatingMenu {
+    self.floatingMenu = [[UIView alloc] initWithFrame:CGRectMake(20, 100, 60, 60)];
+    self.floatingMenu.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.14 alpha:0.9];
+  self.floatingMenu.layer.cornerRadius = 30;
+    self.floatingMenu.layer.borderWidth = 1.5;
+    self.floatingMenu.layer.borderColor = [UIColor systemIndigoColor].CGColor;
+    
+    UILabel *logoLabel = [[UILabel alloc] initWithFrame:self.floatingMenu.bounds];
+    logoLabel.text = @"Δ";
+    logoLabel.textColor = [UIColor whiteColor];
+    logoLabel.textAlignment = NSTextAlignmentCenter;
+    logoLabel.font = [UIFont boldSystemFontOfSize:28];
+    [self.floatingMenu addSubview:logoLabel];
+    
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+    [self.floatingMenu addGestureRecognizer:pan];
+    
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleEditor)];
+    [self.floatingMenu addGestureRecognizer:tap];
+    
+    [self.view addSubview:self.floatingMenu];
+}
+
+- (void)setupScriptEditor {
+    self.scriptEditor = [[UITextView alloc] initWithFrame:CGRectMake(50, 180, self.view.bounds.size.width - 100, 300)];
+    self.scriptEditor.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.12 alpha:0.95];
+    self.scriptEditor.textColor = [UIColor greenColor];
+    self.scriptEditor.font = [UIFont fontWithName:@"Courier" size:14];
+    self.scriptEditor.layer.cornerRadius = 12;
+    self.scriptEditor.layer.borderWidth = 1;
+    self.scriptEditor.layer.borderColor = [UIColor darkGrayColor].CGColor;
+    self.scriptEditor.text = @"-- Delta iOS Script Hub\nprint('Delta initialized successfully');\n\nfunction infiniteJump()\n    while true do\n        task.wait()\n        game.Players.LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)\n    end\nend\ninfiniteJump();";
+    self.scriptEditor.hidden = YES;
+    
+    // Add Execution Toolbar
+    UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, self.scriptEditor.bounds.size.width, 44)];
+    toolbar.barStyle = UIBarStyleBlack;
+    
+    UIBarButtonItem *executeBtn = [[UIBarButtonItem alloc] initWithTitle:@"Execute" style:UIBarButtonItemStyleDone target:self action:@selector(executeScript)];
+    UIBarButtonItem *clearBtn = [[UIBarButtonItem alloc] initWithTitle:@"Clear" style:UIBarButtonItemStylePlain target:self action:@selector(clearScript)];
+    UIBarButtonItem *space = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+    UIBarButtonItem *closeBtn = [[UIBarButtonItem alloc] initWithTitle:@"X" style:UIBarButtonItemStylePlain target:self action:@selector(toggleEditor)];
+    
+    toolbar.items = @[executeBtn, clearBtn, space, closeBtn];
+    self.scriptEditor.inputAccessoryView = toolbar;
+    
+    [self.view addSubview:self.scriptEditor];
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)recognizer {
+    CGPoint translation = [recognizer translationInView:self.view];
+    recognizer.view.center = CGPointMake(recognizer.view.center.x + translation.x,
+                                         recognizer.view.center.y + translation.y);
+    [recognizer setTranslation:CGPointZero inView:self.view];
+}
+
+- (void)toggleEditor {
+    self.scriptEditor.hidden = !self.scriptEditor.hidden;
+    if (!self.scriptEditor.hidden) {
+        [self.scriptEditor becomeFirstResponder];
+    }
+}
+
+- (void)executeScript {
+    NSString *script = self.scriptEditor.text;
+    NSString *jsInjection = [NSString stringWithFormat:@"window.postMessage({type: 'EXECUTE_LUAU', payload: %@}, '*');", 
+                             [NSJSONSerialization JSONObjectWithData:[script dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] ? 
+                             [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:@{@"code": script} options:0 error:nil] encoding:NSUTF8StringEncoding] : @"{}"];
+    
+    [self.gameWebView evaluateJavaScript:jsInjection completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"Execution Error: %@", error.localizedDescription);
+        } else {
+            NSLog(@"Script dispatched successfully via runtime bridge.");
+        }
+    }];
+}
+
+- (void)clearScript {
+    self.scriptEditor.text = @"";
+}
+
+@end
