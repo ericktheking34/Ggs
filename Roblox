@@ -1,0 +1,28 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '14.2'
+
+      - name: Build and Package IPA
+        run: |
+          xcodebuild -project DeltaExecutor.xcodeproj -scheme DeltaExecutor -sdk iphoneos -configuration Release archive -archivePath build/DeltaExecutor.xcarchive
+          xcodebuild -exportArchive -archivePath build/DeltaExecutor.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/
+          
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Delta-iOS-IPA
+          path: build/*.ipa
